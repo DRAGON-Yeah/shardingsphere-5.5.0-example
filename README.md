@@ -282,7 +282,7 @@ public class CustomNacosURLLoader implements ShardingSphereURLLoader {
 }
 ````
 
-* 3.声明SPI：在项目的resources目录下创建[META-INF/services/org.apache.shardingsphere.infra.url.spi.ShardingSphereURLLoader](nacos-mode-5.5.0%2Fsrc%2Fmain%2Fresources%2FMETA-INF%2Fservices%2Forg.apache.shardings)
+* 3.声明SPI：在项目的resources目录下创建：META-INF/services/org.apache.shardingsphere.infra.url.spi.ShardingSphereURLLoader
   并且添加内容：com.base.spi.CustomNacosURLLoader（SPI 实现类）
 
 ---
