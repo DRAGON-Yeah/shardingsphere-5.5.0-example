@@ -1,0 +1,35 @@
+nacos:
+  namespace: ecommerce-local
+  group: MALL_GROUP
+  service-address: 192.168.8.166:8848
+  username: nacos
+  password: nacos
+
+spring:
+  profiles:
+    active: local
+  application:
+    name: nacos-mode
+  main:
+    allow-circular-references: true
+    allow-bean-definition-overriding: true
+  cloud:
+    nacos:
+      config:
+        server-addr: ${nacos.service-address}
+        file-extension: yaml
+        namespace: ${nacos.namespace}
+        group: ${nacos.group}
+        username: ${nacos.username}
+        password: ${nacos.password}
+      discovery:
+        server-addr: ${nacos.service-address}
+        namespace: ${nacos.namespace}
+        group: ${nacos.group}
+        username: ${nacos.username}
+        password: ${nacos.password}
+  datasource:
+    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
+    url: jdbc:shardingsphere:nacos:sharding.yaml?serverAddr=${nacos.service-address}&namespace=${nacos.namespace}&group=${nacos.group}&username=${nacos.username}&password=${nacos.password}
+
+

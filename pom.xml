@@ -1,0 +1,57 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.base.admin</groupId>
+        <artifactId>base-admin-plus</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <groupId>com.base</groupId>
+    <artifactId>shardingsphere5-sample</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <packaging>pom</packaging>
+    <name>shardingsphere5-sample</name>
+
+    <properties>
+        <revision>1.0.0-SNAPSHOT</revision>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <example-common-version>1.0.0-SNAPSHOT</example-common-version>
+
+    </properties>
+
+    <modules>
+        <module>local-mode-5.5.0</module>
+        <module>nacos-mode-5.5.0</module>
+        <module>example-common</module>
+    </modules>
+
+    <dependencyManagement>
+
+        <dependencies>
+
+            <dependency>
+                <groupId>com.base</groupId>
+                <artifactId>example-common</artifactId>
+                <version>${example-common-version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.shardingsphere</groupId>
+                <artifactId>shardingsphere-jdbc</artifactId>
+                <version>5.5.0</version>
+                <exclusions>
+                    <exclusion>
+                        <artifactId>shardingsphere-test-util</artifactId>
+                        <groupId>org.apache.shardingsphere</groupId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+</project>
