@@ -1,9 +1,9 @@
 package com.base.strategy;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.shardingsphere.sharding.api.sharding.standard.PreciseShardingValue;
 import org.apache.shardingsphere.sharding.api.sharding.standard.RangeShardingValue;
 import org.apache.shardingsphere.sharding.api.sharding.standard.StandardShardingAlgorithm;
-import org.springframework.util.StringUtils;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -26,7 +26,7 @@ public class DbPreciseShardingAlgorithm implements StandardShardingAlgorithm<Lon
                 break;
             }
         }
-        if (!StringUtils.hasLength(destDBName)) {
+        if (StringUtils.isBlank(destDBName)) {
             throw new IllegalArgumentException("根据 sharding_key取模 分库策略获取库名错误");
         }
         return destDBName;

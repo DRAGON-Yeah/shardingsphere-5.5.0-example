@@ -1,12 +1,13 @@
 package com.base.strategy;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.shardingsphere.sharding.api.sharding.standard.PreciseShardingValue;
 import org.apache.shardingsphere.sharding.api.sharding.standard.RangeShardingValue;
 import org.apache.shardingsphere.sharding.api.sharding.standard.StandardShardingAlgorithm;
-import org.springframework.util.StringUtils;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.Properties;
 import java.util.Set;
 
 /**
@@ -18,13 +19,38 @@ import java.util.Set;
 public class TablePreciseShardingAlgorithm implements StandardShardingAlgorithm<Long> {
 
     /**
-     * 分4个表
+     * 默认常量
      */
-    private static final int SPLIT_TABLE_SIZE = 4;
+    private static String SHARDING_KEY = "SHARDING_KEY";
+
+    /**
+     * 自定义参数
+     */
+    private Properties properties;
+
+    @Override
+    public void init(Properties properties) {
+        this.properties = properties;
+    }
+
+    /**
+     * 计算分表
+     *
+     * @param preciseShardingValue
+     * @return
+     */
+    private int getShardingValue(long preciseShardingValue) {
+        String formula = properties.getProperty("formula");
+        String expression = formula.replace(SHARDING_KEY, String.valueOf(preciseShardingValue));
+        // 执行计算
+        int value = ExpressionEvaluator.evaluateExpression(expression);
+        return value;
+    }
 
     @Override
     public String doSharding(Collection<String> tables, PreciseShardingValue<Long> preciseShardingValue) {
-        long value = preciseShardingValue.getValue().longValue() % SPLIT_TABLE_SIZE;
+        int value = getShardingValue(preciseShardingValue.getValue().longValue());
+
         String tableName = null;
         for (String table : tables) {
             if (table.endsWith(String.valueOf(value))) {
@@ -32,7 +58,7 @@ public class TablePreciseShardingAlgorithm implements StandardShardingAlgorithm<
                 break;
             }
         }
-        if (!StringUtils.hasLength(tableName)) {
+        if (StringUtils.isBlank(tableName)) {
             throw new IllegalArgumentException("根据 sharding_key取模 分表策略获取表名错误");
         }
         return tableName;
@@ -40,6 +66,7 @@ public class TablePreciseShardingAlgorithm implements StandardShardingAlgorithm<
 
     @Override
     public Collection<String> doSharding(Collection<String> tables, RangeShardingValue<Long> rangeShardingValue) {
+        int size = tables.size();
         Set<String> result = new LinkedHashSet<>();
         // between and 的起始值
         long lower = rangeShardingValue.getValueRange().lowerEndpoint();
@@ -47,7 +74,7 @@ public class TablePreciseShardingAlgorithm implements StandardShardingAlgorithm<
         // 循环范围计算分库逻辑
         for (long i = lower; i <= upper; i++) {
             for (String table : tables) {
-                if (table.endsWith(String.valueOf(i % SPLIT_TABLE_SIZE))) {
+                if (table.endsWith(String.valueOf(i % size))) {
                     result.add(table);
                 }
             }

@@ -27,21 +27,17 @@ rules:
         tableStrategy:
           standard:
             shardingColumn: sharding_key
-            shardingAlgorithmName: sequence_mode
+            shardingAlgorithmName: table_inline
     shardingAlgorithms:
-      database_inline: # 分库策略
+      database_inline: # 全局统一 分库策略
         type: CLASS_BASED
         props:
           strategy: STANDARD
           algorithmClassName: com.base.strategy.DbPreciseShardingAlgorithm
-      sequence_mode: # sequence 分表策略
+      table_inline: # 全局统一 分表策略
         type: CLASS_BASED
         props:
           strategy: STANDARD
           algorithmClassName: com.base.strategy.TablePreciseShardingAlgorithm
-          formula: SHARDING_KEY%4*8+SHARDING_KEY*2+SHARDING_KEY/8
-
-
-
 
 
