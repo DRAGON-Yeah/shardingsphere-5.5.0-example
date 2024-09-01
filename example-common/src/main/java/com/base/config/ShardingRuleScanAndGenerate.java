@@ -19,7 +19,11 @@ import java.util.Set;
 @Slf4j
 public class ShardingRuleScanAndGenerate {
 
-
+    /**
+     * 利用配置，生成配置
+     * @param config
+     * @return
+     */
     public static String generateConfig(String config) {
         Yaml yaml = new Yaml();
         Map<String, JSONObject> parsedData = yaml.load(config);
