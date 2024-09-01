@@ -42,7 +42,7 @@ public abstract class AbsStandardShardingAlgorithm implements StandardShardingAl
             log.error("expression_is_null");
             return -1;
         }
-        String columnName = properties.getProperty("columnName");
+        String columnName = preciseShardingValue.getColumnName();
         long shardingValue = preciseShardingValue.getValue().longValue();
         String expression = expressionStr.replace(columnName, String.valueOf(shardingValue));
         // 执行计算

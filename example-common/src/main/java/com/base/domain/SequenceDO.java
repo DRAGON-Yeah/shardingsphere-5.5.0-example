@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.base.config.ShardingConfig;
+import com.base.config.ShardingConfigEnums;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -11,9 +13,22 @@ import java.util.Date;
 
 /**
  * sequence模型
+ *
  * @author arron
  */
 @Data
+@ShardingConfig(
+        shardingColumn = "sharding_key",
+        tbAlgorithmsType = ShardingConfigEnums.ShardingAlgorithmType.CLASS_BASED,
+        tbStrategy = ShardingConfigEnums.ShardingStrategy.STANDARD,
+        tbAlgorithmClassName = "com.base.strategy.StandardTablePreciseStandardShardingAlgorithm",
+        tbExpression = "sharding_key%4",
+        dbAlgorithmsType = ShardingConfigEnums.ShardingAlgorithmType.CLASS_BASED,
+        dbStrategy = ShardingConfigEnums.ShardingStrategy.STANDARD,
+        dbAlgorithmClassName = "com.base.strategy.StandardDbPreciseStandardShardingAlgorithm",
+        dbExpression = "sharding_key%4",
+        tbShardingCount = 4
+)
 @TableName("sequence")
 public class SequenceDO implements Serializable {
 
