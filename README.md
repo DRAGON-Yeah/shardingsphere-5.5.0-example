@@ -5,10 +5,15 @@
 # 背景
 >  由于网上对于springboot3.x集成的shardingsphere-5.5.0版本，都是基于本地数据源配置，而我们在实际生产
    中，都是基于远程配置中心，本地配置如：jdbc:shardingsphere:classpath:sharding.yaml。然而这种方式不能满足企业级应用开发
-   ，于是，我这里做了一个集成工程，通过实现SPI方式，基于nacos配置中心，
-   进行远程数据源配置，实现读写分离，分库分表。
+   ，于是，我这里做了一个集成工程，解决这些配置问题。
+
+### 解决问题： 
+1.远程配置：通过实现SPI方式，基于nacos配置中心，进行远程数据源配置，实现读写分离，分库分表。
+
+2.去除配置：由于每次配置分库分表，配置文件非常多，非常麻烦，于是我在这些编写了一个自动扫描包，
+  自动生成配置文件功能，实现自动扫描包，注解自动生成配置文件，大大减少了配置工作。
    
-   我只是雷锋，欢迎大家提出意见，欢迎大家提pr
+#  我只是雷锋，欢迎大家提出意见，欢迎大家提pr
 
 # 集成工程
 #### springboot3.x + shardingsphere-5.5.0 + nacos-2.3.0 + mybatis-plus
@@ -385,6 +390,124 @@ public class TablePreciseShardingAlgorithm implements StandardShardingAlgorithm<
 }
 
 ````
+
+
+# 对字段字段分库策略
+
+1. 实现ComplexKeysShardingAlgorithm进行多字段分库分表
+````java
+/**
+ * @title: AbsComplexKeysShardingAlgorithm
+ * @description: 组合键分库分表
+ * @author: arron
+ * @date: 2024/9/1 10:34
+ */
+@Slf4j
+public abstract class AbsComplexKeysShardingAlgorithm implements ComplexKeysShardingAlgorithm<Long> {
+    protected Properties properties;
+
+    @Override
+    public void init(Properties properties) {
+        this.properties = properties;
+    }
+
+    /**
+     * 计算分表
+     *
+     * @param columnNameAndShardingValuesMap
+     * @return -1 表示无表达式
+     */
+    protected int getShardingValue(Map<String, Collection<Long>> columnNameAndShardingValuesMap) {
+        String expression = properties.getProperty("expression");
+        if (StringUtils.isBlank(expression)) {
+            log.error("expression_is_null");
+            return -1;
+        }
+        Set<String> columnNameKeySet = columnNameAndShardingValuesMap.keySet();
+        for (String columnName : columnNameKeySet) {
+            Object preciseShardingValue = columnNameAndShardingValuesMap.get(columnName).iterator().next();
+            expression = expression.replace(columnName, String.valueOf(preciseShardingValue));
+        }
+        // 执行计算
+        int value = ExpressionEvaluator.evaluateExpression(expression);
+        return value;
+    }
+
+}
+
+
+/**
+ * @title: ComplexKeysTableShardingAlgorithm
+ * @description: 复合字段分表策略
+ * @author: arron
+ * @date: 2024/9/1 10:41
+ */
+@Slf4j
+public class ComplexKeysTableShardingAlgorithm extends AbsComplexKeysShardingAlgorithm {
+
+    @Override
+    public Collection<String> doSharding(Collection<String> tables, ComplexKeysShardingValue<Long> complexKeysShardingValue) {
+        if (CollectionUtils.isEmpty(tables)) {
+            log.error("ComplexKeysTableShardingAlgorithm_tables_is_null");
+            throw new IllegalArgumentException("ComplexKeysTableShardingAlgorithm_tables_is_null");
+        }
+        Collection<String> result = new LinkedHashSet<>();
+        String tableName = null;
+
+        if (tables.size() == 1) {
+            log.error("ComplexKeysTableShardingAlgorithm_tables_size_is_one");
+            tableName = tables.iterator().next();
+            result.add(tableName);
+            return result;
+        }
+
+        Map<String, Collection<Long>> columnNameAndShardingValuesMap = complexKeysShardingValue.getColumnNameAndShardingValuesMap();
+        int value = getShardingValue(columnNameAndShardingValuesMap);
+
+        for (String table : tables) {
+            if (table.endsWith(String.valueOf(value))) {
+                tableName = table;
+                result.add(tableName);
+                break;
+            }
+        }
+
+        if (result.isEmpty()) {
+            log.error("ComplexKeysTableShardingAlgorithm_tableName_error 根据 sharding_key 取模 分表策略获取表名错误");
+            throw new IllegalArgumentException("ComplexKeysTableShardingAlgorithm_tableName_error 根据 sharding_key取模 分表策略获取表名错误");
+        }
+        return result;
+    }
+}
+
+````
+
+配置文件：[sharding-complex-bak.yaml](local-mode-5.5.0%2Fsrc%2Fmain%2Fresources%2Fsharding-bak.yaml)
+![img_1.png](script/images/complex-config.png)
+
+````yaml
+rules:
+  - !SHARDING
+    tables: # 分表逻辑
+      sequence:
+        tableStrategy:
+          complex:
+            shardingColumns: sharding_key,value
+            shardingAlgorithmName: table_sequence_mode
+    shardingAlgorithms: # 分片算法策略
+      table_sequence_mode: # sequence 分表策略
+        type: CLASS_BASED
+        props:
+          strategy: COMPLEX
+          algorithmClassName: com.base.strategy.ComplexKeysTableShardingAlgorithm
+          expression: sharding_key%4+value/19000
+````
+
+
+
+
+
+
 
 
 
