@@ -53,6 +53,7 @@ public class ShardingRuleScanAndGenerate {
         sb.append(space2).append("- !SHARDING").append("\n");
         sb.append(space2).append(space2).append("tables:").append("\n");
 
+        //TODO 生成分片规则
         for (Class<?> clazz : annotatedClassesInPackage) {
             TableName tableName = clazz.getAnnotation(TableName.class);
             if (tableName == null) {
