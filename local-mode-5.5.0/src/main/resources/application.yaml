@@ -14,7 +14,7 @@ spring:
     name: local-mode
   datasource:
     driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
-    url: jdbc:shardingsphere:custmer-classpath:sharding.yaml
+    url: jdbc:shardingsphere:custmer-classpath:sharding.yaml?useAutoConfig=true
   servlet:
     multipart:
       max-file-size: 100MB

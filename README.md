@@ -392,7 +392,7 @@ public class TablePreciseShardingAlgorithm implements StandardShardingAlgorithm<
 ````
 
 
-# 对字段字段分库策略
+# 多字段分库策略
 
 1. 实现ComplexKeysShardingAlgorithm进行多字段分库分表
 ````java
@@ -506,7 +506,308 @@ rules:
 
 
 
+# 自动配置
 
+> 步骤1：定义一个注解类，把重点的配置做成属性，允许用户进行自定义，如下：
+参考类：[ShardingConfig.java](example-common%2Fsrc%2Fmain%2Fjava%2Fcom%2Fbase%2Fconfig%2FShardingConfig.java)
+
+````java
+@ShardingConfig(
+        shardingColumn = "sharding_key",
+        tbAlgorithmsType = ShardingConfigEnums.ShardingAlgorithmType.CLASS_BASED,
+        tbStrategy = ShardingConfigEnums.ShardingStrategy.STANDARD,
+        tbAlgorithmClassName = "com.base.strategy.StandardTablePreciseStandardShardingAlgorithm",
+        tbExpression = "sharding_key%4",
+        dbAlgorithmsType = ShardingConfigEnums.ShardingAlgorithmType.CLASS_BASED,
+        dbStrategy = ShardingConfigEnums.ShardingStrategy.STANDARD,
+        dbAlgorithmClassName = "com.base.strategy.StandardDbPreciseStandardShardingAlgorithm",
+        dbExpression = "sharding_key%4",
+        tbShardingCount = 4
+)
+@TableName("sequence")
+````
+
+
+> 步骤2：实现一个扫描器，对package的类进行扫描注解，如下：
+[PackageScanner.java](example-common%2Fsrc%2Fmain%2Fjava%2Fcom%2Fbase%2Fconfig%2FPackageScanner.java)
+
+````java
+    // 扫描使用了注解@TableName的类
+    Set<Class<?>> annotatedClassesInPackage = PackageScanner.getAnnotatedClassesInPackages(packages, TableName.class);
+````
+
+
+> 步骤3：实现一个SPI：[CustomClassPathURLLoader.java](example-common%2Fsrc%2Fmain%2Fjava%2Fcom%2Fbase%2Fconfig%2Fspi%2FCustomClassPathURLLoader.java)，在获取配置时候，对扫描到的类，进行解析，生成配置文件，如下：
+定义：custmer-classpath配置，并且定义变量：useAutoConfig，是否使用自动注解配置
+
+````java
+/**
+ * @title: CustomClassPathURLLoader
+ * @description: 实现SPI，读取配置，自动生成配置
+ * @author: arron
+ * @date: 2024/8/28 22:09
+ */
+@Slf4j
+public class CustomClassPathURLLoader implements ShardingSphereURLLoader {
+
+    /**
+     * 定义jdbc:shardingsphere:后的类型为nacos:
+     */
+    private static final String CUSTOMER_CLASSPATH_TYPE = "custmer-classpath:";
+
+    /**
+     * 接收custmer:classpath:
+     *
+     * @param configurationSubject configuration dataId
+     * @param queryProps           url参数，已经解析成为Properties
+     * @return
+     */
+    @Override
+    @SneakyThrows
+    public String load(String configurationSubject, Properties queryProps) {
+        try (InputStream inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(configurationSubject)) {
+            Objects.requireNonNull(inputStream);
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                String config = reader.lines().collect(Collectors.joining(System.lineSeparator()));
+
+                String useAutoConfig = queryProps.getProperty("useAutoConfig");
+                if (!StringUtils.isBlank(useAutoConfig) && Boolean.parseBoolean(useAutoConfig)) {
+                    config = ShardingRuleScanAndGenerate.generateConfig(config);
+                }
+                log.warn("自动生成分表配置：\n{}", config);
+                return config;
+            }
+        }
+    }
+
+
+    @Override
+    public Object getType() {
+        return CUSTOMER_CLASSPATH_TYPE;
+    }
+}
+````
+
+[application.yaml](local-mode-5.5.0%2Fsrc%2Fmain%2Fresources%2Fapplication.yaml)
+````yaml 
+spring:
+  datasource:
+    url: jdbc:shardingsphere:custmer-classpath:sharding.yaml?useAutoConfig=true
+````
+
+[sharding.yaml](local-mode-5.5.0%2Fsrc%2Fmain%2Fresources%2Fsharding.yaml) 只需要配置数据源信息，其他配置，由用户注解进行配置，如下：
+
+注意，需要对所需要分库分表的类进行扫描：scan-package: com.base.domain,com.base.entity
+
+````yaml
+dataSources:
+  ds_0:
+    driverClassName: com.mysql.cj.jdbc.Driver
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    url: jdbc:mysql://localhost:3306/db_sequence_0?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
+    username: root
+    password: root
+  ds_1:
+    driverClassName: com.mysql.cj.jdbc.Driver
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    url: jdbc:mysql://localhost:3306/db_sequence_1?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
+    username: root
+    password: root
+props:
+  sql-show: true
+  # 扫描包名，自动生成分库分表，多个package用逗号或者分号分隔
+  scan-package: com.base.domain,com.base.entity
+
+````
+
+> 步骤4：实现组装配置类：[ShardingRuleScanAndGenerate.java](example-common%2Fsrc%2Fmain%2Fjava%2Fcom%2Fbase%2Fconfig%2FShardingRuleScanAndGenerate.java)，
+> 利用注解解析出来的配置，进行组装配置，最后由SPI统一返回配置：
+````java
+
+/**
+ * @title: ShardingRuleScanAndGenerate
+ * @description: 启动时候扫描并且生成规则
+ * @author: arron
+ * @date: 2024/9/1 11:50
+ */
+@Slf4j
+public class ShardingRuleScanAndGenerate {
+
+    /**
+     * 利用配置，生成配置
+     * @param config
+     * @return
+     */
+    public static String generateConfig(String config) {
+        Yaml yaml = new Yaml();
+        Map<String, JSONObject> parsedData = yaml.load(config);
+        Map<String, JSONObject> dataSources = (LinkedHashMap) parsedData.get("dataSources");
+        if (dataSources == null) {
+            log.error("no dataSources config");
+            throw new RuntimeException("no dataSources config");
+        }
+        Map<String, String> scanPackages = (LinkedHashMap) parsedData.get("props");
+        if (scanPackages == null){
+            log.error("no scan-package config");
+            throw new RuntimeException("no scan-package config");
+        }
+        String packages = scanPackages.get("scan-package");
+        if (StringUtils.isBlank(packages)){
+            log.error("no scan-package ");
+            throw new RuntimeException("no scan-package");
+        }
+        config = config + generateConfig(dataSources, packages);
+        return config;
+    }
+
+    public static String generateConfig(Map<String, JSONObject> dataSources, String packages) {
+        Set<Class<?>> annotatedClassesInPackage = PackageScanner.getAnnotatedClassesInPackages(packages, TableName.class);
+        log.info("扫描到分表规则类：{}", JSONObject.toJSONString(annotatedClassesInPackage));
+        String space2 = "  ";
+
+        StringBuffer sb = new StringBuffer();
+        sb.append("\n");
+        sb.append("rules:").append("\n");
+        sb.append(space2).append("- !SHARDING").append("\n");
+        sb.append(space2).append(space2).append("tables:").append("\n");
+
+        //TODO 生成分片规则
+        for (Class<?> clazz : annotatedClassesInPackage) {
+            TableName tableName = clazz.getAnnotation(TableName.class);
+            if (tableName == null) {
+                continue;
+            }
+            // 表名
+            String tb_name = tableName.value();
+            sb.append(space2).append(space2).append(space2).append(tb_name).append(":\n");
+
+            ShardingConfig shardingConfig = clazz.getAnnotation(ShardingConfig.class);
+            if (shardingConfig == null) {
+                continue;
+            }
+
+            int tbShardingCount = shardingConfig.tbShardingCount();
+            String actualDataNodes = getActualDataNodes(tb_name, dataSources, tbShardingCount);
+            sb.append(space2).append(space2).append(space2).append(space2).append(actualDataNodes).append("\n");
+
+            // 分库策略
+            sb.append(space2).append(space2).append(space2).append(space2).append("databaseStrategy").append(":\n");
+
+            // 分片字段
+            String shardingColumn = shardingConfig.shardingColumn();
+
+            // 数据库分片算法
+            String dbStrategy = shardingConfig.dbStrategy().name();
+
+            // 表分片算法
+            String tbStrategy = shardingConfig.tbStrategy().name();
+
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append(dbStrategy.toLowerCase()).append(":\n");
+            //TODO 判断是否组合建
+            if (ShardingConfigEnums.ShardingStrategy.STANDARD.equals(shardingConfig.dbStrategy())) {
+                sb.append(space2).append(space2).append(space2).append(space2).append(space2).append(space2).append("shardingColumn: ").append(shardingColumn).append("\n");
+            } else {
+                sb.append(space2).append(space2).append(space2).append(space2).append(space2).append(space2).append("shardingColumns: ").append(shardingColumn).append("\n");
+            }
+            String default_db_strategy = "default_db_" + tb_name + "_strategy";
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append(space2).append("shardingAlgorithmName: ").append(default_db_strategy).append("\n");
+
+            // 分表策略
+            sb.append(space2).append(space2).append(space2).append(space2).append("tableStrategy").append(":\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append(tbStrategy.toLowerCase()).append(":\n");
+
+            //TODO 判断是否组合建
+            if (ShardingConfigEnums.ShardingStrategy.STANDARD.equals(shardingConfig.tbStrategy())) {
+                sb.append(space2).append(space2).append(space2).append(space2).append(space2).append(space2).append("shardingColumn: ").append(shardingColumn).append("\n");
+            } else {
+                sb.append(space2).append(space2).append(space2).append(space2).append(space2).append(space2).append("shardingColumns: ").append(shardingColumn).append("\n");
+            }
+            String default_tb_strategy = "default_tb_" + tb_name + "_strategy";
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append(space2).append("shardingAlgorithmName: ").append(default_tb_strategy).append("\n");
+        }
+
+        String shardingAlgorithms = "shardingAlgorithms:";
+        sb.append(space2).append(space2).append(shardingAlgorithms).append("\n");
+
+        //TODO 定义分片算法
+        for (Class<?> clazz : annotatedClassesInPackage) {
+            TableName tableName = clazz.getAnnotation(TableName.class);
+            if (tableName == null) {
+                continue;
+            }
+            // 表名
+            String tb_name = tableName.value();
+
+            ShardingConfig shardingConfig = clazz.getAnnotation(ShardingConfig.class);
+            if (shardingConfig == null) {
+                continue;
+            }
+            // 数据库分片算法
+            String dbAlgorithmType = shardingConfig.dbAlgorithmsType().name();
+            String dbAlgorithmClassName = shardingConfig.dbAlgorithmClassName();
+            String dbStrategy = shardingConfig.dbStrategy().name();
+            String dbExpression = shardingConfig.dbExpression();
+
+            // 表分片算法
+            String tbAlgorithmType = shardingConfig.tbAlgorithmsType().name();
+            String tbAlgorithmClassName = shardingConfig.tbAlgorithmClassName();
+            String tbExpression = shardingConfig.tbExpression();
+            String tbStrategy = shardingConfig.tbStrategy().name();
+
+            String default_db_strategy = "default_db_" + tb_name + "_strategy";
+            //分库
+            sb.append(space2).append(space2).append(space2).append(default_db_strategy).append(":\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append("type: ").append(dbAlgorithmType).append("\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append("props:").append("\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append("strategy: ").append(dbStrategy).append("\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append("algorithmClassName: ").append(dbAlgorithmClassName).append("\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append("expression: ").append(dbExpression).append("\n");
+
+            String default_tb_strategy = "default_tb_" + tb_name + "_strategy";
+            //分表
+            sb.append(space2).append(space2).append(space2).append(default_tb_strategy).append(":\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append("type: ").append(tbAlgorithmType).append("\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append("props:").append("\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append("strategy: ").append(tbStrategy).append("\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append("algorithmClassName: ").append(tbAlgorithmClassName).append("\n");
+            sb.append(space2).append(space2).append(space2).append(space2).append(space2).append("expression: ").append(tbExpression).append("\n");
+        }
+
+        String tableConfig = sb.toString();
+//        log.warn("自动生成分表配置：\n{}", tableConfig);
+        return tableConfig;
+    }
+
+    public static String getActualDataNodes(String tbName, Map<String, JSONObject> dataSources, int tbShardingCount) {
+        // 数据库数量
+        Set<String> dbKeySet = dataSources.keySet();
+        int dbSize = dbKeySet.size();
+        String actualDataNodes = "actualDataNodes:";
+
+        if (dbSize == 1) {
+            String dbName = dbKeySet.iterator().next();
+            actualDataNodes = actualDataNodes + " " + dbName + "." + tbName;
+            return actualDataNodes;
+        }
+
+        int i = 0;
+        for (String key : dbKeySet) {
+            String dbName = key;
+            actualDataNodes = actualDataNodes + " " + dbName + "." + tbName + "_${0.." + (tbShardingCount - 1) + "}";
+            if (i < dbSize - 1) {
+                actualDataNodes = actualDataNodes + ",";
+            }
+            i++;
+        }
+        return actualDataNodes;
+    }
+}
+
+````
+
+### 测试
+
+![img.png](script/images/generate-config.png)
 
 
 

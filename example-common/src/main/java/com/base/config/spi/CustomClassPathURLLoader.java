@@ -3,6 +3,7 @@ package com.base.config.spi;
 import com.base.config.ShardingRuleScanAndGenerate;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.shardingsphere.infra.url.spi.ShardingSphereURLLoader;
 
 import java.io.BufferedReader;
@@ -27,7 +28,6 @@ public class CustomClassPathURLLoader implements ShardingSphereURLLoader {
      */
     private static final String CUSTOMER_CLASSPATH_TYPE = "custmer-classpath:";
 
-    private boolean useConfig = true;
 
     /**
      * 接收custmer:classpath:
@@ -43,7 +43,9 @@ public class CustomClassPathURLLoader implements ShardingSphereURLLoader {
             Objects.requireNonNull(inputStream);
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
                 String config = reader.lines().collect(Collectors.joining(System.lineSeparator()));
-                if (useConfig) {
+
+                String useAutoConfig = queryProps.getProperty("useAutoConfig");
+                if (!StringUtils.isBlank(useAutoConfig) && Boolean.parseBoolean(useAutoConfig)) {
                     config = ShardingRuleScanAndGenerate.generateConfig(config);
                 }
                 log.warn("自动生成分表配置：\n{}", config);
