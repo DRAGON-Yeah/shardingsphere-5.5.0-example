@@ -25,21 +25,21 @@ rules:
             shardingColumn: sharding_key
             shardingAlgorithmName: default_database_inline
         tableStrategy:
-          complex:
-            shardingColumns: sharding_key,value
+          standard:
+            shardingColumn: sharding_key
             shardingAlgorithmName: table_sequence_mode
     shardingAlgorithms: # 分片算法策略
       default_database_inline: # 分库策略
         type: CLASS_BASED
         props:
           strategy: STANDARD
-          algorithmClassName: com.base.strategy.StandardDbPreciseStandardShardingAlgorithm
+          algorithmClassName: com.base.strategy.DbPreciseShardingAlgorithm
       table_sequence_mode: # sequence 分表策略
         type: CLASS_BASED
         props:
-          strategy: COMPLEX
-          algorithmClassName: com.base.strategy.ComplexKeysTableShardingAlgorithm
-          expression: sharding_key%4+value/19000
+          strategy: STANDARD
+          algorithmClassName: com.base.strategy.TablePreciseShardingAlgorithm
+          expression: sharding_key%4
 
 
 

@@ -74,12 +74,12 @@ rules:
         type: CLASS_BASED
         props:
           strategy: STANDARD
-          algorithmClassName: com.base.strategy.DbPreciseShardingAlgorithm
+          algorithmClassName: com.base.strategy.StandardDbPreciseStandardShardingAlgorithm
       table_inline: # 分表策略
         type: CLASS_BASED
         props:
           strategy: STANDARD
-          algorithmClassName: com.base.strategy.TablePreciseShardingAlgorithm
+          algorithmClassName: com.base.strategy.StandardTablePreciseStandardShardingAlgorithm
 ````
 
 
@@ -304,8 +304,8 @@ http://localhost:8088/list?shardingKey=1
         type: CLASS_BASED
         props:
           strategy: STANDARD
-          algorithmClassName: com.base.strategy.TablePreciseShardingAlgorithm
-          formula: SHARDING_KEY%4*8+SHARDING_KEY*2+SHARDING_KEY/8 #自定义分表公式
+          algorithmClassName: com.base.strategy.StandardTablePreciseStandardShardingAlgorithm
+          expression: SHARDING_KEY%4*8+SHARDING_KEY*2+SHARDING_KEY/8 #自定义分表公式
 ````
 
 
@@ -341,10 +341,10 @@ public class TablePreciseShardingAlgorithm implements StandardShardingAlgorithm<
      * @return
      */
     private int getShardingValue(long preciseShardingValue) {
-        String formula = properties.getProperty("formula");
-        String expression = formula.replace(SHARDING_KEY, String.valueOf(preciseShardingValue));
+        String expression = properties.getProperty("expression");
+        String expressionStr = expression.replace(SHARDING_KEY, String.valueOf(preciseShardingValue));
         // 执行计算
-        int value = ExpressionEvaluator.evaluateExpression(expression);
+        int value = ExpressionEvaluator.evaluateExpression(expressionStr);
         return value;
     }
 

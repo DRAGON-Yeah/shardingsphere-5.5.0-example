@@ -1,5 +1,6 @@
 package com.base.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.base.domain.SequenceDO;
 import com.base.mapper.SequenceMapper;
 import jakarta.annotation.Resource;
@@ -30,7 +31,10 @@ public class IndexController {
 
     @GetMapping("list")
     public List<SequenceDO> list(long shardingKey) {
-        List<SequenceDO> list = sequenceMapper.list(shardingKey);
+        LambdaQueryWrapper<SequenceDO> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(SequenceDO::getShardingKey, shardingKey);
+        queryWrapper.eq(SequenceDO::getValue, 19000);
+        List<SequenceDO> list = sequenceMapper.selectList(queryWrapper);
         return list;
     }
 
