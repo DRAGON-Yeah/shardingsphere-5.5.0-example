@@ -20,6 +20,23 @@ public class PackageScanner {
     /**
      * 扫描指定包下的所有类，并获取它们的注解信息。
      *
+     * @param packageNames    包名, 多个包名用逗号分隔
+     * @param annotationClass
+     * @return
+     */
+    public static Set<Class<?>> getAnnotatedClassesInPackages(String packageNames, Class<? extends Annotation> annotationClass) {
+        Set<Class<?>> annotatedClasses = new HashSet<>();
+        String[] splitPackageNames = packageNames.split(",");
+        for (String packageName : splitPackageNames) {
+            Set<Class<?>> annotatedClassesInPackage = getAnnotatedClassesInPackage(packageName, annotationClass);
+            annotatedClasses.addAll(annotatedClassesInPackage);
+        }
+        return annotatedClasses;
+    }
+
+    /**
+     * 扫描指定包下的所有类，并获取它们的注解信息。
+     *
      * @param packageName     包名
      * @param annotationClass 注解类型
      * @return 包含注解信息的类集合

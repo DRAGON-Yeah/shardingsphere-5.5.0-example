@@ -13,4 +13,5 @@ dataSources:
     password: root
 props:
   sql-show: true
-
+  # 扫描包名，自动生成分库分表，多个package用逗号或者分号分隔
+  scan-package: com.base.domain,com.base.entity

@@ -3,7 +3,7 @@ package com.base.config;
 import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
+import org.apache.commons.lang3.StringUtils;
 import org.yaml.snakeyaml.Yaml;
 
 import java.util.LinkedHashMap;
@@ -28,13 +28,22 @@ public class ShardingRuleScanAndGenerate {
             log.error("no dataSources config");
             throw new RuntimeException("no dataSources config");
         }
-        config = config + generateConfig(dataSources);
+        Map<String, String> scanPackages = (LinkedHashMap) parsedData.get("props");
+        if (scanPackages == null){
+            log.error("no scan-package config");
+            throw new RuntimeException("no scan-package config");
+        }
+        String packages = scanPackages.get("scan-package");
+        if (StringUtils.isBlank(packages)){
+            log.error("no scan-package ");
+            throw new RuntimeException("no scan-package");
+        }
+        config = config + generateConfig(dataSources, packages);
         return config;
     }
 
-
-    public static String generateConfig(Map<String, JSONObject> dataSources) {
-        Set<Class<?>> annotatedClassesInPackage = PackageScanner.getAnnotatedClassesInPackage("com.base.domain", TableName.class);
+    public static String generateConfig(Map<String, JSONObject> dataSources, String packages) {
+        Set<Class<?>> annotatedClassesInPackage = PackageScanner.getAnnotatedClassesInPackages(packages, TableName.class);
         log.info("扫描到分表规则类：{}", JSONObject.toJSONString(annotatedClassesInPackage));
         String space2 = "  ";
 
@@ -173,7 +182,6 @@ public class ShardingRuleScanAndGenerate {
         }
         return actualDataNodes;
     }
-
 
 
 }
